@@ -50,24 +50,19 @@ export function ZonePanel() {
   }
 
   return (
-    <div style={{
-      marginTop: 16, paddingTop: 12, borderTop: "1px solid #333",
-    }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
-        <strong style={{ color: "#ddd" }}>Zones</strong>
-        <div style={{ display: "flex", gap: 6 }}>
-          <button type="button" style={btn} onClick={() => setAdding((v) => !v)}>
-            {adding ? "Cancel" : "Add zone"}
-          </button>
-          <button
-            type="button"
-            style={{ ...btn, opacity: selected ? 1 : 0.4 }}
-            disabled={!selected}
-            onClick={() => selected && a.removeZone(selected.id)}
-          >
-            Remove
-          </button>
-        </div>
+    <div>
+      <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+        <button type="button" style={{ ...btn, flex: 1 }} onClick={() => setAdding((v) => !v)}>
+          {adding ? "Cancel" : "Add zone"}
+        </button>
+        <button
+          type="button"
+          style={{ ...btn, flex: 1, opacity: selected ? 1 : 0.4 }}
+          disabled={!selected}
+          onClick={() => selected && a.removeZone(selected.id)}
+        >
+          Remove
+        </button>
       </div>
 
       {adding && (

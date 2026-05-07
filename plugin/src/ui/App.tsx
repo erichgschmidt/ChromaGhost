@@ -12,6 +12,7 @@ import {
   buildColorPassOutput,
 } from "../ps";
 import { ZonePanel } from "./components/ZonePanel";
+import { Section } from "./components/Section";
 import { useStore } from "../state/store";
 
 const rgbCss = (c: RGB) =>
@@ -79,8 +80,6 @@ export function App() {
         const layer = getActiveLayer();
         const grayscale = await readLayerAsImageBuffer(doc.id, layer.id);
         const expectedLen = grayscale.width * grayscale.height;
-        // Use zoned pass if we have at least one zone with a captured mask
-        // sized to the source layer. Otherwise fall back to the macro pass.
         const usableMasks = zonesWithMasks.filter((z) => z.bitmap.length === expectedLen);
         const useZoned = usableMasks.length > 0;
         const output = useZoned
@@ -89,6 +88,7 @@ export function App() {
               mood,
               tree,
               zoneMasks: Object.fromEntries(usableMasks.map((z) => [z.id, z.bitmap])),
+              unownedTransparent: true,
               globalOverrides: {
                 chromaScale,
                 hueDriftScale: hueDrift,
@@ -141,69 +141,92 @@ export function App() {
       : "#aaa";
 
   const isRunning = status.kind === "running";
+  const zoneCount = Object.keys(tree.nodes).length;
+  const zonesWithMaskCount = zonesWithMasks.length;
 
   return (
-    <div style={{ padding: 16, fontSize: 12, lineHeight: 1.4 }}>
-      <h2 style={{ margin: "0 0 4px", fontSize: 16 }}>ChromaGhost</h2>
-      <p style={{ margin: "0 0 16px", color: "#999" }}>
-        v0.1 — M3 Photoshop adapter wired.
+    <div style={{
+      // Make the panel scrollable inside the UXP host. UXP panels don't
+      // auto-scroll their root unless we set explicit overflow + bounded height.
+      height: "100vh",
+      overflowY: "auto",
+      overflowX: "hidden",
+      padding: "12px 14px 24px",
+      fontSize: 12,
+      lineHeight: 1.4,
+      boxSizing: "border-box",
+    }}>
+      <h2 style={{ margin: "0 0 2px", fontSize: 16 }}>ChromaGhost</h2>
+      <p style={{ margin: "0 0 8px", color: "#999", fontSize: 11 }}>
+        v0.1 — grayscale → full color pass
       </p>
 
-      <div style={{ marginBottom: 8, color: "#bbb" }}>Mood</div>
-      <select
-        value={moodId}
-        onChange={(e) => setMoodId(e.target.value)}
-        style={{ width: "100%", padding: 6, marginBottom: 16 }}
+      <Section title="Mood" defaultOpen rightHint={mood.name}>
+        <select
+          value={moodId}
+          onChange={(e) => setMoodId(e.target.value)}
+          style={{ width: "100%", padding: 6, marginBottom: 10 }}
+        >
+          {MOODS.map((m) => (
+            <option key={m.id} value={m.id}>{m.name}</option>
+          ))}
+        </select>
+        <div style={{ marginBottom: 6, color: "#bbb", fontSize: 11 }}>Value ramp preview</div>
+        <div style={{
+          display: "flex", height: 40, borderRadius: 4, overflow: "hidden",
+          border: "1px solid #444",
+        }}>
+          {ramp.map((c, i) => (
+            <div key={i} style={{ flex: 1, background: rgbCss(c) }} />
+          ))}
+        </div>
+      </Section>
+
+      <Section title="Macro sliders" defaultOpen>
+        <Slider label="Saturation"   value={chromaScale} min={0}   max={2}  step={0.05} onChange={setChromaScale} format={(v) => v.toFixed(2) + "×"} />
+        <Slider label="Drama"        value={hueDrift}    min={0}   max={2}  step={0.05} onChange={setHueDrift}    format={(v) => v.toFixed(2) + "×"} />
+        <Slider label="Warm ↔ Cool"  value={hueOffset}   min={-30} max={30} step={1}    onChange={setHueOffset}   format={(v) => (v > 0 ? "+" : "") + v + "°"} />
+        <Slider label="Keep shading" value={keepShading} min={0}   max={1}  step={0.02} onChange={setKeepShading} format={(v) => Math.round(v * 100) + "%"} />
+        <button
+          type="button"
+          onClick={resetSliders}
+          style={{
+            width: "100%", padding: "4px 8px", marginTop: 4,
+            background: "transparent", color: "#888",
+            border: "1px solid #444", cursor: "pointer", fontSize: 11,
+          }}
+        >
+          Reset sliders
+        </button>
+      </Section>
+
+      <Section
+        title="Zones"
+        defaultOpen
+        rightHint={zoneCount === 0 ? "none" : `${zoneCount} zone${zoneCount === 1 ? "" : "s"} · ${zonesWithMaskCount} with mask`}
       >
-        {MOODS.map((m) => (
-          <option key={m.id} value={m.id}>{m.name}</option>
-        ))}
-      </select>
+        <ZonePanel />
+      </Section>
 
-      <div style={{ marginBottom: 8, color: "#bbb" }}>Value ramp preview</div>
-      <div style={{
-        display: "flex", height: 48, borderRadius: 4, overflow: "hidden",
-        border: "1px solid #444", marginBottom: 16,
-      }}>
-        {ramp.map((c, i) => (
-          <div key={i} style={{ flex: 1, background: rgbCss(c) }} />
-        ))}
-      </div>
-
-      <Slider label="Saturation"   value={chromaScale} min={0} max={2} step={0.05} onChange={setChromaScale} format={(v) => v.toFixed(2) + "×"} />
-      <Slider label="Drama"        value={hueDrift}    min={0} max={2} step={0.05} onChange={setHueDrift}    format={(v) => v.toFixed(2) + "×"} />
-      <Slider label="Warm ↔ Cool"  value={hueOffset}   min={-30} max={30} step={1} onChange={setHueOffset}   format={(v) => (v > 0 ? "+" : "") + v + "°"} />
-      <Slider label="Keep shading" value={keepShading} min={0} max={1} step={0.02} onChange={setKeepShading} format={(v) => Math.round(v * 100) + "%"} />
-
-      <button
-        type="button"
-        onClick={resetSliders}
-        style={{
-          width: "100%", padding: "4px 8px", marginBottom: 12,
-          background: "transparent", color: "#888",
-          border: "1px solid #444", cursor: "pointer", fontSize: 11,
-        }}
-      >
-        Reset sliders
-      </button>
-
-      <button
-        type="button"
-        onClick={onGenerate}
-        disabled={isRunning}
-        style={{
-          width: "100%",
-          padding: "8px 12px",
-          marginBottom: 12,
-          cursor: isRunning ? "default" : "pointer",
-        }}
-      >
-        Generate Color Pass on Active Layer
-      </button>
-
-      <div style={{ color: statusColor }}>{statusText}</div>
-
-      <ZonePanel />
+      <Section title="Generate" defaultOpen>
+        <button
+          type="button"
+          onClick={onGenerate}
+          disabled={isRunning}
+          style={{
+            width: "100%",
+            padding: "10px 12px",
+            marginBottom: 8,
+            cursor: isRunning ? "default" : "pointer",
+            fontWeight: 600,
+          }}
+        >
+          {zonesWithMaskCount > 0
+            ? `Generate Zoned Color Pass (${zonesWithMaskCount} zone${zonesWithMaskCount === 1 ? "" : "s"})`
+            : "Generate Color Pass on Active Layer"}
+        </button>
+        <div style={{ color: statusColor, fontSize: 11 }}>{statusText}</div>
+      </Section>
     </div>
   );
 }

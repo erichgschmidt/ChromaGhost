@@ -34,6 +34,12 @@ export interface ZonedColorPassInput {
   };
   /** Material assignment override map (zone.materialId is preferred if set). */
   materialOverrides?: Record<ZoneId, string>;
+  /**
+   * If true, pixels not owned by any zone are written as fully transparent
+   * (alpha=0) instead of the macro-pass color. Default: false.
+   * Set to true so the output layer masks itself to the union of captured zones.
+   */
+  unownedTransparent?: boolean;
 }
 
 export interface ZonedColorPassOutput extends ColorPassOutput {
@@ -149,13 +155,19 @@ export function generateZonedColorPass(input: ZonedColorPassInput): ZonedColorPa
   });
 
   // 4. Pixel pass.
+  const unownedTransparent = input.unownedTransparent ?? false;
   const out = new Uint8ClampedArray(n * 4);
   for (let i = 0; i < n; i++) {
     const ownerId = owners[i];
+    const owned = ownerId !== "" && !!compiled[ownerId];
+    if (!owned && unownedTransparent) {
+      // alpha already 0 (Uint8ClampedArray init), leave RGB at 0
+      continue;
+    }
     let ramp: ValueRamp;
     let q: Quantiles;
     let valuePres: number;
-    if (ownerId !== "" && compiled[ownerId]) {
+    if (owned) {
       const c = compiled[ownerId];
       ramp = c.ramp;
       q = c.quantiles;
