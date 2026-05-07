@@ -32,18 +32,37 @@ const SHAPES: Record<LightingMode, RampShape> = {
   },
 };
 
+export interface RampOptions {
+  /** 0..2, scales lighting-mode hue drift across the ramp. Default 1. */
+  hueDriftScale?: number;
+  /** 0..2, multiplies chroma at every stop. Default 1. */
+  chromaScale?: number;
+  /** Degrees, added to every stop's hue (warm/cool nudge). Default 0. */
+  hueOffset?: number;
+}
+
 /**
  * Build a 4-stop ramp from the mood's dominant hue family.
- * A `hueDriftScale` of 1.0 uses the lighting-mode default; 0 disables.
+ * Backwards compatible: passing a number is treated as `hueDriftScale`.
  */
-export function buildValueRamp(mood: Mood, hueDriftScale = 1): ValueRamp {
+export function buildValueRamp(
+  mood: Mood,
+  optsOrDrift: number | RampOptions = {},
+): ValueRamp {
+  const opts: RampOptions = typeof optsOrDrift === "number"
+    ? { hueDriftScale: optsOrDrift }
+    : optsOrDrift;
+  const drift = opts.hueDriftScale ?? 1;
+  const chromaScale = opts.chromaScale ?? 1;
+  const hueOffset = opts.hueOffset ?? 0;
+
   const seed = mood.paletteSeeds[0];
   const shape = SHAPES[mood.lightingMode];
   const stops: RGB[] = [];
   for (let i = 0; i < 4; i++) {
     const L = shape.L[i];
-    const C = seed.chroma * shape.Cmul[i];
-    const h = seed.h + shape.Hoff[i] * hueDriftScale;
+    const C = Math.max(0, seed.chroma * shape.Cmul[i] * chromaScale);
+    const h = seed.h + hueOffset + shape.Hoff[i] * drift;
     stops.push(oklchToRgb(L, C, h));
   }
   return [stops[0], stops[1], stops[2], stops[3]];

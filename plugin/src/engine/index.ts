@@ -14,6 +14,33 @@ export * from "./types";
 export { MOODS, moodById } from "./moods";
 export { buildValueRamp, sampleRamp } from "./palette";
 export { computeHistogram, quartileAnchors } from "./histogram";
+export {
+  MATERIALS,
+  materialById,
+  listMaterials,
+  applyMaterialToRamp,
+} from "./materials";
+export type { Material, MaterialFinish } from "./materials";
+export {
+  createZoneTree,
+  addZone,
+  removeZone,
+  moveZone,
+  updateZone,
+  walkDepthFirst,
+  ancestorChain,
+} from "./zoneTree";
+export type {
+  ZoneId,
+  ZoneNode,
+  ZoneTree,
+  ZoneStyle,
+  ZoneLocks,
+  ZoneDepth,
+  MaskRef,
+  PaletteRole,
+} from "./zoneTree";
+export { resolveEffectiveStyle } from "./inheritance";
 
 export interface GenerateColorPassInput {
   grayscale: ImageBuffer;
@@ -22,13 +49,21 @@ export interface GenerateColorPassInput {
   valuePreservation?: number;
   /** 0..2, scales lighting-mode hue drift. Default 1. */
   hueDriftScale?: number;
+  /** 0..2, multiplies chroma across the ramp (saturation). Default 1. */
+  chromaScale?: number;
+  /** Degrees, added to every ramp stop's hue (warm/cool nudge). Default 0. */
+  hueOffset?: number;
 }
 
 export function generateColorPass(input: GenerateColorPassInput): ColorPassOutput {
   const { grayscale, mood } = input;
   const hist = computeHistogram(grayscale);
   const q = quartileAnchors(hist);
-  const ramp = buildValueRamp(mood, input.hueDriftScale ?? 1);
+  const ramp = buildValueRamp(mood, {
+    hueDriftScale: input.hueDriftScale ?? 1,
+    chromaScale: input.chromaScale ?? 1,
+    hueOffset: input.hueOffset ?? 0,
+  });
   const valuePres = input.valuePreservation ?? mood.defaultValuePreservation;
 
   const w = grayscale.width;
