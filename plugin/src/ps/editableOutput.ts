@@ -158,6 +158,35 @@ async function addLayerMaskRevealAll(): Promise<void> {
   ]);
 }
 
+/**
+ * Remove any pre-existing top-level groups with the given name, so re-running
+ * Generate replaces the previous output instead of stacking duplicates.
+ */
+async function deleteExistingTopGroups(name: string): Promise<void> {
+  const doc = app.activeDocument;
+  if (!doc) return;
+  // doc.layers is the top-level z-order list (deepest at end). Collect ids
+  // first; deleting while iterating shifts the array.
+  const targets: number[] = [];
+  // UXP: `layers` is iterable on the photoshop Document.
+  for (const l of doc.layers as Iterable<any>) {
+    if (l && l.name === name) targets.push(l.id as number);
+  }
+  for (const id of targets) {
+    try {
+      await bp([
+        {
+          _obj: "delete",
+          _target: [{ _ref: "layer", _id: id }],
+          _options: { dialogOptions: "dontDisplay" },
+        },
+      ]);
+    } catch {
+      // Best-effort cleanup; ignore failures on individual layers.
+    }
+  }
+}
+
 /** Move `childId` into `groupId` so it becomes the topmost child of the group. */
 async function moveLayerIntoGroup(childId: number, groupId: number): Promise<void> {
   await bp([
@@ -247,6 +276,9 @@ export async function buildEditableOutput(
   const { width, height } = activeDocSize();
   const pixelCount = width * height;
 
+  // Replace any prior ChromaGhost output so regenerate doesn't stack duplicates.
+  await deleteExistingTopGroups(TOP_GROUP_NAME);
+
   // Anchor insertion above the source layer.
   await selectLayerById(sourceLayerId);
 
@@ -267,6 +299,11 @@ export async function buildEditableOutput(
     const adjId = await makeGradientMapLayer("Macro Gradient Map", gm);
     // PS places the new adjustment above the group; move it inside.
     await moveLayerIntoGroup(adjId, groupId);
+    try {
+      await selectLayerById(sourceLayerId);
+    } catch {
+      // ignore
+    }
     return { groupId, zoneGroupIds };
   }
 
@@ -312,8 +349,13 @@ export async function buildEditableOutput(
   await moveLayerIntoGroup(macroId, groupId);
   await applyMaskToLayer(documentId, macroId, width, height, inverseMask);
 
-  // Re-select the top group as a tidy exit state.
-  await selectLayerById(groupId);
+  // Tidy exit: restore the source layer as active so a follow-up
+  // "Generate" or "Capture from selection" finds the right anchor.
+  try {
+    await selectLayerById(sourceLayerId);
+  } catch {
+    // Source layer may have been removed mid-flight; not fatal.
+  }
 
   return { groupId, zoneGroupIds };
 }
