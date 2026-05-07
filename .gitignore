@@ -1,0 +1,12 @@
+node_modules/
+dist/
+*.ccx
+*.zip
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log
+.env
+.env.local
+coverage/
