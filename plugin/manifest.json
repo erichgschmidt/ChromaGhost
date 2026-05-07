@@ -1,0 +1,44 @@
+{
+  "manifestVersion": 5,
+  "id": "chromaghost",
+  "name": "ChromaGhost",
+  "version": "0.1.0",
+  "description": "Grayscale to full color pass with hierarchical zones, materials, and accents.",
+  "author": {
+    "name": "Erich Schmidt",
+    "email": "erichgschmidt@gmail.com"
+  },
+  "main": "index.html",
+  "host": [
+    {
+      "app": "PS",
+      "minVersion": "25.0.0",
+      "data": {
+        "apiVersion": 2,
+        "enableMenuRecording": true
+      }
+    }
+  ],
+  "requiredPermissions": {
+    "localFileSystem": "request"
+  },
+  "entrypoints": [
+    {
+      "type": "panel",
+      "id": "chromaGhostPanel",
+      "label": { "default": "ChromaGhost" },
+      "minimumSize": { "width": 240, "height": 320 },
+      "maximumSize": { "width": 1200, "height": 2400 },
+      "preferredDockedSize": { "width": 300, "height": 900 },
+      "preferredFloatingSize": { "width": 320, "height": 900 },
+      "icons": [
+        { "width": 23, "height": 23, "path": "icons/icon-light.png", "scale": [1, 2], "theme": ["lightest", "light", "medium"], "species": ["chrome"] },
+        { "width": 23, "height": 23, "path": "icons/icon-dark.png", "scale": [1, 2], "theme": ["dark", "darkest"], "species": ["chrome"] }
+      ]
+    }
+  ],
+  "icons": [
+    { "width": 23, "height": 23, "path": "icons/icon-light.png", "scale": [1, 2], "theme": ["lightest", "light", "medium"] },
+    { "width": 23, "height": 23, "path": "icons/icon-dark.png", "scale": [1, 2], "theme": ["dark", "darkest"] }
+  ]
+}
