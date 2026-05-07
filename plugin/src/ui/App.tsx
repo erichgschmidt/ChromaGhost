@@ -10,6 +10,7 @@ import {
   getActiveLayer,
   readLayerAsImageBuffer,
   buildColorPassOutput,
+  buildEditableOutput,
 } from "../ps";
 import { ZonePanel } from "./components/ZonePanel";
 import { Section } from "./components/Section";
@@ -43,13 +44,16 @@ const Slider = ({ label, value, min, max, step, onChange, format }: SliderProps)
 type Status =
   | { kind: "idle" }
   | { kind: "running" }
-  | { kind: "done"; layerId: number }
+  | { kind: "done"; label: string }
   | { kind: "error"; message: string };
+
+type OutputMode = "editable" | "baked";
 
 export function App() {
   const [moodId, setMoodId] = useState(MOODS[0].id);
   const mood = useMemo(() => MOODS.find((m) => m.id === moodId)!, [moodId]);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
+  const [outputMode, setOutputMode] = useState<OutputMode>("editable");
   const [{ tree }] = useStore();
 
   const zonesWithMasks = useMemo(() => {
@@ -75,20 +79,23 @@ export function App() {
   const onGenerate = async () => {
     setStatus({ kind: "running" });
     try {
-      const newLayerId = await executeAsModal("ChromaGhost: Generate Color Pass", async () => {
+      const label = await executeAsModal("ChromaGhost: Generate Color Pass", async () => {
         const doc = getActiveDoc();
         const layer = getActiveLayer();
         const grayscale = await readLayerAsImageBuffer(doc.id, layer.id);
         const expectedLen = grayscale.width * grayscale.height;
         const usableMasks = zonesWithMasks.filter((z) => z.bitmap.length === expectedLen);
         const useZoned = usableMasks.length > 0;
+        // Editable mode keeps the macro fallback color visible outside zones
+        // (it lives behind an inverse-of-union mask in PS), so we ONLY force
+        // unowned-transparent for the baked path.
         const output = useZoned
           ? generateZonedColorPass({
               grayscale,
               mood,
               tree,
               zoneMasks: Object.fromEntries(usableMasks.map((z) => [z.id, z.bitmap])),
-              unownedTransparent: true,
+              unownedTransparent: outputMode === "baked",
               globalOverrides: {
                 chromaScale,
                 hueDriftScale: hueDrift,
@@ -104,14 +111,32 @@ export function App() {
               hueOffset,
               valuePreservation: keepShading,
             });
-        return buildColorPassOutput({
+
+        if (outputMode === "editable") {
+          const zoneNames: Record<string, string> = {};
+          for (const id of Object.keys(tree.nodes)) zoneNames[id] = tree.nodes[id].name;
+          const res = await buildEditableOutput({
+            documentId: doc.id,
+            sourceLayerId: layer.id,
+            output,
+            zoneMasks: Object.fromEntries(usableMasks.map((z) => [z.id, z.bitmap])),
+            zoneNames,
+          });
+          const zoneCount = Object.keys(res.zoneGroupIds).length;
+          return zoneCount > 0
+            ? `Editable group #${res.groupId} (${zoneCount} zones)`
+            : `Editable group #${res.groupId}`;
+        }
+
+        const newLayerId = await buildColorPassOutput({
           documentId: doc.id,
           sourceLayerId: layer.id,
           output,
           targetBounds: layer.bounds,
         });
+        return `Baked layer #${newLayerId}`;
       });
-      setStatus({ kind: "done", layerId: newLayerId });
+      setStatus({ kind: "done", label });
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       setStatus({ kind: "error", message });
@@ -129,7 +154,7 @@ export function App() {
     switch (status.kind) {
       case "idle": return "Idle.";
       case "running": return "Generating color pass…";
-      case "done": return `Done. New layer id: ${status.layerId}`;
+      case "done": return `Done. ${status.label}`;
       case "error": return `Error: ${status.message}`;
     }
   })();
@@ -208,7 +233,34 @@ export function App() {
         <ZonePanel />
       </Section>
 
-      <Section title="Generate" defaultOpen>
+      <Section title="Generate" defaultOpen rightHint={outputMode === "editable" ? "editable" : "baked"}>
+        <div style={{ color: "#bbb", fontSize: 11, marginBottom: 4 }}>Output mode</div>
+        <div style={{ display: "flex", gap: 6, marginBottom: 10 }}>
+          {(["editable", "baked"] as OutputMode[]).map((m) => (
+            <button
+              key={m}
+              type="button"
+              onClick={() => setOutputMode(m)}
+              style={{
+                flex: 1,
+                padding: "6px 8px",
+                background: outputMode === m ? "#3a3a3a" : "transparent",
+                color: outputMode === m ? "#fff" : "#aaa",
+                border: "1px solid " + (outputMode === m ? "#666" : "#444"),
+                cursor: "pointer",
+                fontSize: 11,
+                textTransform: "capitalize",
+              }}
+            >
+              {m}
+            </button>
+          ))}
+        </div>
+        <div style={{ fontSize: 10, color: "#777", marginBottom: 10, lineHeight: 1.4 }}>
+          {outputMode === "editable"
+            ? "Group + Gradient Map adjustment per zone, masked. Tweak the GM stops in PS afterward."
+            : "Single flattened pixel layer. Faster preview, not editable."}
+        </div>
         <button
           type="button"
           onClick={onGenerate}

@@ -43,6 +43,8 @@ export type {
 export { resolveEffectiveStyle } from "./inheritance";
 export { generateZonedColorPass, buildOwnerMap } from "./zonedPass";
 export type { ZonedColorPassInput, ZonedColorPassOutput } from "./zonedPass";
+export { rampToGradientMap, macroGradientMap } from "./gradientMap";
+export type { GradientMap, GradientMapStop, RampToStopsArgs } from "./gradientMap";
 
 export interface GenerateColorPassInput {
   grayscale: ImageBuffer;

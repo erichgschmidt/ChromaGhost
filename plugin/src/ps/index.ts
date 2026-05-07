@@ -18,3 +18,6 @@ export {
 
 export { buildColorPassOutput, COLOR_PASS_LAYER_NAME } from "./outputStack";
 export type { BuildOutputArgs } from "./outputStack";
+
+export { buildEditableOutput } from "./editableOutput";
+export type { BuildEditableArgs, BuildEditableResult } from "./editableOutput";
