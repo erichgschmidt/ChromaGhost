@@ -9,5 +9,12 @@ export type { LayerRef } from "./layers";
 
 export { readLayerAsImageBuffer, writeColorPassToLayer, activeDocSize } from "./imaging";
 
+export {
+  readSelectionAsMask,
+  readLayerMask,
+  readFlatColorMask,
+  detectFlatColorZones,
+} from "./masks";
+
 export { buildColorPassOutput, COLOR_PASS_LAYER_NAME } from "./outputStack";
 export type { BuildOutputArgs } from "./outputStack";

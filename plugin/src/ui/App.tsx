@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
 import { MOODS } from "../engine/moods";
 import { buildValueRamp } from "../engine/palette";
-import { generateColorPass } from "../engine/index";
+import { generateColorPass, generateZonedColorPass } from "../engine/index";
 import type { RGB } from "../engine/types";
+import type { ZoneId } from "../engine/zoneTree";
 import {
   executeAsModal,
   getActiveDoc,
@@ -10,6 +11,8 @@ import {
   readLayerAsImageBuffer,
   buildColorPassOutput,
 } from "../ps";
+import { ZonePanel } from "./components/ZonePanel";
+import { useStore } from "../state/store";
 
 const rgbCss = (c: RGB) =>
   `rgb(${(c.r * 255) | 0}, ${(c.g * 255) | 0}, ${(c.b * 255) | 0})`;
@@ -46,6 +49,16 @@ export function App() {
   const [moodId, setMoodId] = useState(MOODS[0].id);
   const mood = useMemo(() => MOODS.find((m) => m.id === moodId)!, [moodId]);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
+  const [{ tree }] = useStore();
+
+  const zonesWithMasks = useMemo(() => {
+    const out: { id: ZoneId; bitmap: Uint8Array }[] = [];
+    for (const id of Object.keys(tree.nodes)) {
+      const bm = tree.nodes[id].maskRef.bitmap;
+      if (bm) out.push({ id, bitmap: bm });
+    }
+    return out;
+  }, [tree]);
 
   // Macro sliders (PRD §11). Defaults are neutral so output matches mood as designed.
   const [chromaScale, setChromaScale] = useState(1);   // saturation
@@ -65,14 +78,32 @@ export function App() {
         const doc = getActiveDoc();
         const layer = getActiveLayer();
         const grayscale = await readLayerAsImageBuffer(doc.id, layer.id);
-        const output = generateColorPass({
-          grayscale,
-          mood,
-          chromaScale,
-          hueDriftScale: hueDrift,
-          hueOffset,
-          valuePreservation: keepShading,
-        });
+        const expectedLen = grayscale.width * grayscale.height;
+        // Use zoned pass if we have at least one zone with a captured mask
+        // sized to the source layer. Otherwise fall back to the macro pass.
+        const usableMasks = zonesWithMasks.filter((z) => z.bitmap.length === expectedLen);
+        const useZoned = usableMasks.length > 0;
+        const output = useZoned
+          ? generateZonedColorPass({
+              grayscale,
+              mood,
+              tree,
+              zoneMasks: Object.fromEntries(usableMasks.map((z) => [z.id, z.bitmap])),
+              globalOverrides: {
+                chromaScale,
+                hueDriftScale: hueDrift,
+                hueOffset,
+                valuePreservation: keepShading,
+              },
+            })
+          : generateColorPass({
+              grayscale,
+              mood,
+              chromaScale,
+              hueDriftScale: hueDrift,
+              hueOffset,
+              valuePreservation: keepShading,
+            });
         return buildColorPassOutput({
           documentId: doc.id,
           sourceLayerId: layer.id,
@@ -171,6 +202,8 @@ export function App() {
       </button>
 
       <div style={{ color: statusColor }}>{statusText}</div>
+
+      <ZonePanel />
     </div>
   );
 }

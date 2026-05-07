@@ -41,6 +41,8 @@ export type {
   PaletteRole,
 } from "./zoneTree";
 export { resolveEffectiveStyle } from "./inheritance";
+export { generateZonedColorPass, buildOwnerMap } from "./zonedPass";
+export type { ZonedColorPassInput, ZonedColorPassOutput } from "./zonedPass";
 
 export interface GenerateColorPassInput {
   grayscale: ImageBuffer;
